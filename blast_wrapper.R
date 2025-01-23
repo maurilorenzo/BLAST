@@ -202,7 +202,6 @@ fit_blast <- function(
       Ms_2 <- factors_estimates$Ms_2[[s]]
       y_perp <- Y[[s]] - 1/n_s* tcrossprod(Ms_2) %*% Y[[s]]
       F_ <- svd(Y_perp_s)$u[,1:q_s[s]] *sqrt(n_s)
-      Gammas_mean_2[,1:q_s[s],s] <- t(Y_perp_s) %*% Fs[[s]] /(n_s +  1/tau_2_hat_s )
       Gammas_samples[,1:q_s[s],,s] <- Gamma_s_fable$Gamma_samples[,,]
       Gammas_outer_mean[,,s] <- tcrossprod(mu_js_s) + rho_Gammas[s]^2 * diag(as.vector(V_js))/n_s
       if(sample_outer_product){

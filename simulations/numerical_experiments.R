@@ -58,13 +58,6 @@ for(sim in 1:n_sim){
     df_cavi <- rbind(df_cavi, c(2, output_cavi))
   }
   if(test_blast){
-    flag_svd_y = 1
-    flag_svd_p = 1
-    if(p> 1000){
-      flag_svd_y = 3
-      flag_svd_p = 4
-    }
-    
     ptm <- proc.time()
     blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=500, k_max=20, subsample_index=subsample_index,
                            svd_cpp=T, svd_econ=T) 

@@ -84,12 +84,6 @@ for(sim in 1:n_sim){
     df_msfa <- rbind(df_msfa, c(5, output_msfa))
   }
   if(test_blast){
-    flag_svd_y = 1
-    flag_svd_p = 1
-    if(p> 1000){
-      flag_svd_y = 3
-      flag_svd_p = 4
-    }
     set.seed(123)
     ptm <- proc.time()
     blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=n_MC, k_max=20,
