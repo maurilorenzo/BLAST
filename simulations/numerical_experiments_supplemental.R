@@ -30,6 +30,12 @@ test_svi <- T; test_cavi <- T; test_blast <- T; test_msfa <- T; test_bmsfa <- T
 n_sim <- 50
 sim <- 1
 
+df_svi <- data.frame()
+df_cavi <- data.frame()
+df_blast <- data.frame()
+df_bmsfa <- data.frame()
+df_msfa <- data.frame()
+
 
 for(sim in 1:n_sim){
   data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)

@@ -234,7 +234,7 @@ compute_metrics_vi <- function(vi_fit, Lambda_0_outer, Gammas_0_outer, Etas_0, P
 ################################################################################
 # Helper functions for MSFA and BMSFA
 ################################################################################
-compute_outer_samples_msfa_msfa <- function(bmsfa_fit, subsample_index=1:p){
+compute_outer_samples_msfa <- function(bmsfa_fit, subsample_index=1:p){
   n_MC <-  dim(bmsfa_fit$Phi)[3]
   p <- dim(bmsfa_fit$Phi)[1]
   p_sample <- length(subsample_index)
