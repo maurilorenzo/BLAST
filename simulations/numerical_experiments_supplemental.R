@@ -1,0 +1,121 @@
+### R SCRIPT TO REPLICATE THE NUMERICAL EXPERIMENTS IN THE SUPPLEMENTARY MATERIAL
+
+source('simulations/helpers_numerical_experiments.R')
+
+
+S <- 3; k_0 <- 10; q_s <- rep(5, S)
+
+scenario_supp <- 8
+
+if(scenario_supp==1){
+  p <- 100; n_s <- rep(100, S); var <- 'hom'
+} else if(scenario_supp==2){
+  p <- 100; n_s <- rep(100, S); var <- 'het'
+} else if(scenario_supp==3){
+  p <- 100; n_s <- rep(200, S); var <- 'hom'
+}else if(scenario_supp==4){
+  p <- 100; n_s <- rep(200, S); var <- 'het'
+}else if(scenario_supp==5){
+  p <- 200; n_s <- rep(200, S); var <- 'hom'
+} else if(scenario_supp==6){
+  p <- 200; n_s <- rep(200, S); var <- 'het'
+} else if(scenario_supp==7){
+  p <- 300; n_s <- rep(200, S); var <- 'hom'
+}else if(scenario_supp==8){
+  p <- 300; n_s <- rep(200, S); var <- 'het'
+}
+
+test_svi <- T; test_cavi <- T; test_blast <- T; test_msfa <- T; test_bmsfa <- T
+
+n_sim <- 50
+sim <- 1
+
+
+for(sim in 1:n_sim){
+  data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)
+  Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
+  Etas_0=data_sim$Etas_0; Phis_0=data_sim$Phis_0
+  subsample_index <- 1:100
+  Lambda_0_outer_sub <- Lambda_0_outer[subsample_index, subsample_index]
+  
+  if(test_svi){
+    set.seed(123)
+    ptm <- proc.time()
+    svi_est <- svi_msfa(Y, K=k_0, J_s=q_s, batch_prop = 0.2, max_iter = 1000, scale=F)
+    svi_time =  proc.time() - ptm
+    output_svi <- compute_metrics_vi(svi_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
+                                     n_MC=n_MC, subsample_index=subsample_index)
+    rm(svi_est)
+    output_svi[5*S +4] = svi_time[3]
+    df_svi <- rbind(df_svi, c(1, output_svi))
+  }
+  if(test_cavi){
+    set.seed(123)
+    ptm <- proc.time()
+    cavi_est <- cavi_msfa(Y, k_0, q_s, scale=F, max_iter=1000)
+    cavi_time <-  proc.time() - ptm
+    output_cavi <- compute_metrics_vi(cavi_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0, n_MC=n_MC,
+                                      subsample_index=subsample_index)
+    rm(cavi_est)
+    output_cavi[5*S +4] = cavi_time[3]
+    df_cavi <- rbind(df_cavi, c(2, output_cavi))
+  }
+  if(test_bmsfa){
+    set.seed(123)
+    ptm <- proc.time()
+    bmsfa_est <- sp_msfa(Y, k=k_0, j_s=q_s, trace=FALSE, control=list(nrun=10000, burn=5000, thin=10))
+    bmsfa_time <-  proc.time() - ptm
+    output_bmsfa <- compute_metrics_bmsfa(bmsfa_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0, 
+                                          subsample_index=subsample_index)
+    rm(bmsfa_est)
+    output_bmsfa[5*S +4] = bmsfa_time[3]
+    df_bmsfa <- rbind(df_bmsfa, c(4, output_bmsfa))
+  }
+  if(test_msfa){
+    set.seed(123)
+    ptm <- proc.time()
+    msfa_start_value <- start_msfa(Y, k=k_0, j_s=q_s)
+    msfa_fit <-  ecm_msfa(Y, msfa_start_value, trace=FALSE, corr=FALSE)
+    msfa_time <-  proc.time() - ptm
+    output_msfa <- compute_metrics_msfa(msfa_fit, Y, Lambda_0_outer, Gammas_0_outer, Etas_0, 
+                                        Phis_0, subsample_index=subsample_index)
+    rm(msfa_est)
+    output_msfa[5*S +4] = msfa_time[3]
+    df_msfa <- rbind(df_msfa, c(5, output_msfa))
+  }
+  if(test_blast){
+    flag_svd_y = 1
+    flag_svd_p = 1
+    if(p> 1000){
+      flag_svd_y = 3
+      flag_svd_p = 4
+    }
+    set.seed(123)
+    ptm <- proc.time()
+    blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=n_MC, k_max=20,
+                           subsample_index=subsample_index,
+                           svd_cpp=T, svd_econ=T) 
+    blast_time =  proc.time() - ptm
+    output_blast <- compute_metrics_blast(blast_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
+                                          n_MC=n_MC, subsample_index=1:100)
+    output_blast[5*S + 4] = blast_time[3]
+    df_blast <- rbind(df_blast, c(3, output_blast))
+  }
+  
+}
+
+
+names <- c('method', 'L_fr', 'L_cov', 'L_len', paste0("G", 1:S, "_fr"), paste0("G", 1:S, "_cov"), 
+           paste0("G", 1:S, "_len"), paste0("Eta", 1:S, "_fr"), paste0("Phi", 1:S, "_fr"),
+           'time')
+names(df_svi) <- names
+names(df_cavi) <- names
+names(df_bmsfa) <- names
+names(df_msfa) <- names
+names(df_blast) <- names
+
+print_metrics(df_svi, S=3)
+print_metrics(df_cavi, S=3)
+print_metrics(df_bmsfa, S=3)
+print_metrics(df_msfa, S=3)
+print_metrics(df_blast, S=3)

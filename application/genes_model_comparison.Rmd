@@ -1,0 +1,230 @@
+---
+title: "gene_model_comparison"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r}
+source('application/helpers_application.R')
+#load('.RData')
+```
+
+
+# p = 2486
+```{r}
+cutoff <- 0.75
+source('application/gene_preprocessing.R')
+```
+
+
+# LATENT DIMENSION ESTIMATION
+```{r}
+estimate_latent_dimensions <-  function(Y, tau=0.1){
+  k_hats <- list()
+  S <-length(Y)
+  p <- ncol(Y[1])
+  P_tilde <- matrix(0, p, p)
+  k_max <- 0
+  k_s <- c()
+  for(s in 1:S){
+    k_hats[[s]] <- estimate_latent_dimension(Y[[s]], k_max=100)
+    V <-  k_hats[[s]]$svd_Y$v[,1: k_hats[[s]]$k_hat]; 
+    P <- tcrossprod(V)
+    P_tilde <- P_tilde + P
+    k_max <- k_max + k_hats[[s]]$k_hat
+    k_s[s] <- k_hats[[s]]$k_hat
+  }
+   P_tilde <- P_tilde / S
+   s_tilde <- svd(P_tilde, nu=k_max, nv=k_max)
+   k_0_hat <- max(which(s_tilde$d[1:(k_max)] > 1 - tau))
+   return(list(k_0=k_0_hat, q_s = k_s - k_0_hat))
+}
+```
+
+
+
+## Latent dimensions estimated via information criteria
+
+```{r}
+lat_dim_gene <- estimate_latent_dimensions(Y_gene)
+
+k_0_hat <- lat_dim_gene$k_0
+q_s_hat <- lat_dim_gene$q_s
+c(k_0_hat, q_s_hat)
+```
+
+### BLAST
+```{r}
+set.seed(123)
+n_MC<- 500
+ptm <- proc.time()
+blast_gene_est_1 <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_1 <- (proc.time() - ptm)[3]
+blast_gene_time_1
+```
+
+```{r}
+#blast_gene_est_1 <- readRDS('models_fit/p2486/blast_genes_est_1.rds')
+blast_gene_acc_1 <- compute_oos_accuracy_blast(blast_gene_est_1, Y_test_gene, impute_factor_index_gene, coverage=T)
+```
+
+
+
+## VI 
+Both CAVI and SVI run into numerical errors
+```{r}
+library(VIMSFA)
+```
+
+### CAVI
+```{r}
+set.seed(123)
+cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+cavi_gene_acc_1 <- compute_oos_accuracy_vi(cavi_est_gene_1, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+### SVI
+```{r}
+set.seed(123)
+svi_est_gene_1 <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+```
+
+
+# Reduced Latent dimensions
+```{r}
+q_s_hat_2 <-c(20, 20, 20)
+```
+
+
+## BLAST
+```{r}
+set.seed(123)
+n_MC<- 200
+ptm <- proc.time()
+blast_gene_est_2 <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat_2, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_2 <- (proc.time() - ptm)[3]
+blast_gene_time_2
+```
+
+```{r}
+blast_gene_acc_2 <- compute_oos_accuracy_blast(blast_gene_est_2, Y_test_gene, impute_factor_index_gene, coverage = T)
+summary(blast_gene_acc_2$r2s)
+```
+
+
+
+## VI 
+
+### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_2 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+cavi_gene_time_2 <- proc.time() - ptm
+cavi_gene_time_2
+```
+
+```{r}
+cavi_gene_acc_2 <- compute_oos_accuracy_vi(cavi_est_gene_2, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+
+### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_2 <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+svi_gene_time_2 <- proc.time() - ptm
+svi_gene_time_2
+```
+
+```{r}
+svi_gene_acc_2 <- compute_oos_accuracy_vi(svi_est_gene_2, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+# p = 7870
+```{r}
+cutoff <- 0.5
+source('gene_preprocessing.R')
+```
+
+
+## Latent dimensions estimated via information criteria
+
+### BLAST
+```{r}
+set.seed(123)
+n_MC<- 200
+ptm <- proc.time()
+blast_gene_est_1_b <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat, n_MC=n_MC,
+  sample_outer_product = F, k_max=120, flag_svd_y = 3, flag_svd_p = 4) 
+blast_gene_time_1_b <- (proc.time() - ptm)[3]
+blast_gene_time_1_b
+```
+
+
+```{r}
+blast_gene_acc_1_b <- compute_oos_accuracy_blast(blast_gene_est_1_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+## Reduced latent dimensions 
+
+### BLAST
+```{r}
+q_s_hat_2 <-c(20, 20, 20)
+
+set.seed(123)
+n_MC<- 500
+ptm <- proc.time()
+blast_gene_est_2_b <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat_2, n_MC=n_MC,
+  sample_outer_product = F, k_max=120, flag_svd_y = 3, flag_svd_p = 4) 
+blast_gene_time_2_b <- (proc.time() - ptm)[3]
+blast_gene_time_2_b
+```
+
+```{r}
+blast_gene_acc_2_b <- compute_oos_accuracy_blast(blast_gene_est_2_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+### VI 
+
+ #### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_2_b <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+cavi_gene_time_2_b <- proc.time() - ptm
+cavi_gene_time_2_b
+```
+
+```{r}
+cavi_gene_acc_2 <- compute_oos_accuracy_vi(cavi_est_gene_2_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+#### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_2_b <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+svi_gene_time_2_b <- proc.time() - ptm
+svi_gene_time_2_b
+```
+
+
+```{r}
+n_MC <- 500
+svi_gene_acc_2_b <- compute_oos_accuracy_vi(svi_est_gene_2_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+

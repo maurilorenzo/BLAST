@@ -1,0 +1,7 @@
+*.RData
+*.Rhistory
+*.rds
+\competitors
+*.csv
+*.pdf
+*.png
