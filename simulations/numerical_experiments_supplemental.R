@@ -3,9 +3,9 @@
 source('simulations/helpers_numerical_experiments.R')
 
 
-S <- 3; k_0 <- 10; q_s <- rep(5, S)
+S <- 3; k_0 <- 4; q_s <- rep(3, S)
 
-scenario_supp <- 8
+scenario_supp <- 9
 
 if(scenario_supp==1){
   p <- 100; n_s <- rep(100, S); var <- 'hom'
@@ -23,9 +23,11 @@ if(scenario_supp==1){
   p <- 300; n_s <- rep(200, S); var <- 'hom'
 }else if(scenario_supp==8){
   p <- 300; n_s <- rep(200, S); var <- 'het'
+}else if(scenario_supp==9){
+  p <- 150; n_s <- rep(200, S); var <- 'hom'
 }
 
-test_svi <- T; test_cavi <- T; test_blast <- T; test_msfa <- T; test_bmsfa <- T
+test_svi <- T; test_cavi <- T; test_blast <- F; test_msfa <- F; test_bmsfa <- F
 
 n_sim <- 50
 sim <- 1
@@ -38,12 +40,13 @@ df_msfa <- data.frame()
 
 
 for(sim in 1:n_sim){
+  print(sim)
   data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)
   Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
   Etas_0=data_sim$Etas_0; Phis_0=data_sim$Phis_0
-  subsample_index <- 1:100
+  subsample_index <- 1:min(p, 100)
   Lambda_0_outer_sub <- Lambda_0_outer[subsample_index, subsample_index]
-  
+  n_MC = 500
   if(test_svi){
     set.seed(123)
     ptm <- proc.time()
@@ -94,7 +97,7 @@ for(sim in 1:n_sim){
     ptm <- proc.time()
     blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=n_MC, k_max=20,
                            subsample_index=subsample_index,
-                           svd_cpp=T, svd_econ=T) 
+                           svd_cpp=T, svd_econ=T, tau=0.2) 
     blast_time =  proc.time() - ptm
     output_blast <- compute_metrics_blast(blast_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
                                           n_MC=n_MC, subsample_index=1:100)
@@ -119,3 +122,6 @@ print_metrics(df_cavi, S=3)
 print_metrics(df_bmsfa, S=3)
 print_metrics(df_msfa, S=3)
 print_metrics(df_blast, S=3)
+
+
+write.csv(df_blast, '../results/p150_n200/df_blast.csv')

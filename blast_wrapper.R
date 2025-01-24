@@ -153,8 +153,7 @@ fit_blast <- function(
   mu_Lambda <- t(Y_joint) %*% M_joint / (n_joint + 1/tau_2_hat_s)
   mu_Lambda_samples <- array(rep(mu_Lambda, n_MC), dim = c(n_MC, p, k))
   rho_Lambda <- 1
-  hist(V_js)
-  
+
   
   if(cc_Lambda){
     B <- compute_B_Lambda(mu_Lambda, V_js)
@@ -297,7 +296,7 @@ estimate_latent_dimension <- function(Y, k_max){
   svd_Y <- svd(Y)
   n <- nrow(Y)
   jics <- sapply(1:k_max, function(x) (compute_jic(Y, svd_Y, x)))
-  plot(1:k_max, jics, type='l')
+  plot(1:k_max, jics, type='l', xlab='k', ylab='jic', main='')
   print(paste('k_hat = ', which.min(jics)))
   return(list(k_hat = which.min(jics), jics=jics, svd_Y = svd_Y))
 }
