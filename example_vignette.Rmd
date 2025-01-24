@@ -1,0 +1,114 @@
+---
+title: "BLAST example"
+output: html_document
+date: "2025-01-24"
+---
+
+```{r}
+source('blast_wrapper.R')
+```
+
+
+# Generate data
+
+```{r}
+generate_data <- function(p=500, n_s=rep(500, 5), S=5, q_s=rep(5,5), k_0=10, seed=123, var='het'){
+  set.seed(seed)
+  sigma_loadings <- 0.5 # std of loadings
+  pi_lambda = 0.5 # add sparsity (pi_lambda = prob of being non zero)
+  l_sigma=0.5; u_sigma=5 # upper and lower bounds of residual variances
+  Loadings <- matrix(rnorm(p*(k_0+sum(q_s)), 0, sigma_loadings), ncol=(k_0+sum(q_s)))
+  Loadings <- Loadings * matrix(rbinom(p*(k_0+sum(q_s)), 1, pi_lambda), nrow=p)
+  Lambda_0 <- Loadings[,1:k_0]
+  Lambda_0_outer <- Lambda_0 %*% t(Lambda_0)
+  
+  Gammas_0 <- list()
+  Gammas_0_outer <- list()
+  Sigmas_0 <- list()
+  LRs_0<-  list()
+  Thetas_0 <- list()
+  
+  k_init <- k_0 +1
+  
+  for(s in 1:S){
+    print(s)
+    n <- n_s[s]
+    Gamma_1 <- Loadings[, k_init:(k_init + q_s[s]-1)]
+    k_init <- k_init + q_s[s]
+    Gammas_0[[s]] <- Gamma_1
+    Gammas_0_outer[[s]] <-  Gamma_1 %*% t(Gamma_1)
+    LRs_0[[s]] <- Lambda_0_outer + Gammas_0_outer[[s]] 
+    Sigmas_0[[s]] <- diag(runif(p, l_sigma, u_sigma), ncol=p, nrow=p)
+    Thetas_0[[s]] <- LRs_0[[s]] + Sigmas_0[[s]]
+  }
+  
+  
+  ## generate data
+  Etas_0 <- list()
+  Phis_0 <- list()
+  Y <- list()
+  #set.seed(123)
+  for(s in 1:S){
+    n <- n_s[s]
+    Etas_0[[s]] <- matrix(rnorm(n*k_0), ncol=k_0)
+    Phis_0[[s]] <- matrix(rnorm(n*q_s[s]), ncol=q_s[s])
+    Y[[s]] <- Etas_0[[s]] %*% t(Lambda_0)+  Phis_0[[s]] %*% t(Gammas_0[[s]])
+    if(var == 'het'){
+      Y[[s]] <- Y[[s]] + mvrnorm(n, rep(0,p), Sigmas_0[[s]])
+    }
+    else{
+      Y[[s]] <- Y[[s]] + mvrnorm(n, rep(0,p), Sigmas_0[[1]])
+    }
+  }
+  return(list(Y=Y, Lambda_0_outer=Lambda_0_outer, Gammas_0_outer=Gammas_0_outer,
+              Etas_0=Etas_0, Phis_0=Phis_0))
+}
+```
+
+```{r}
+S <- 5 # number of studies
+k_0 <- 10 # latent dimension of shared component
+q_s <- rep(5, S) # latent dimension of study-specific component
+p <- 500 # outcome dimension 
+n_s <- rep(500, S)# sample sizes
+var <- 'hom'
+
+data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)
+Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
+Etas_0=data_sim$Etas_0; Phis_0=data_sim$Phis_0
+subsample_index <- 1:100
+Lambda_0_outer_sub <- Lambda_0_outer[subsample_index, subsample_index]
+```
+
+# Fit BLAST
+
+```{r}
+blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=n_MC, k_max=20, subsample_index=subsample_index) 
+```
+
+# Compute Performance
+
+## Low-rank covariance components
+
+### Accuracy
+```{r}
+norm((tcrossprod(blast_est$Lambda_mean) - Lambda_0_outer), type='F') / norm(Lambda_0_outer, type='F')
+for(s in 1:S){
+  norm((tcrossprod(blast_est$Gammas_mean) - Gammas_0_outer[[s]]), type='F') / 
+    norm(Gammas_0_outer[[s]], type='F')
+}
+```
+
+### Coverage
+```{r}
+Lambda_outer_qs <- apply(blast_est$Lambda_outer_samples, c(1,2), 
+                         function(x)(quantile(x, probs=c(0.025, 0.975))))
+mean((Lambda_outer_qs[1,,]<Lambda_0_outer_sub) & (Lambda_outer_qs[2,,]>Lambda_0_outer_sub))
+for(s in 1:S){
+  Gammas_outer_qs <- apply(blast_est$Gammas_outer_samples, c(1,2, 4), 
+                         function(x)(quantile(x, probs=c(0.025, 0.975))))
+  mean((Gammas_outer_qs[1,,,s]<Gammas_0_outer[[s]][subsample_index, subsample_index]) &
+       (Gammas_outer_qs[2,,,s]>Gammas_0_outer[[s]][subsample_index, subsample_index]))
+}
+```
+
