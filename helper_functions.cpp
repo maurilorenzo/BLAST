@@ -33,8 +33,7 @@ List sample_Lambda(const arma::mat& Y,
   arma::mat Sigmas_samples(N_mc, p, arma::fill::zeros);
   arma::vec residuals(p, arma::fill::zeros);
   arma::mat residual_matrix = arma::eye(n, n) - M * M.t() / n;
-  Rcpp::Rcout << "init dont" << std::endl;
-  
+
   for(int j = 0; j < p; ++j) {
     residuals[j] = as_scalar(Y.col(j).t() * residual_matrix * Y.col(j));
   }
@@ -53,8 +52,7 @@ List sample_Lambda(const arma::mat& Y,
     * k * rho * rho / (n + 1 / tau_2);
   Lambda_outer_mean = mu_js * mu_js.t() + D;
   
-  Rcpp::Rcout << "mean" << std::endl;
-  
+
   
   // Sampling process
   for (int it = 0; it < N_mc; ++it) {

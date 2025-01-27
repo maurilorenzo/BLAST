@@ -99,6 +99,11 @@ for(s in 1:S){
 }
 ```
 
+```{r}
+plot(Lambda_0_outer_sub, tcrossprod(blast_est$Lambda_mean[subsample_index,]), main='Shared LR component (true vs est)', xlab='true param', ylab='est'); abline(0,1, col='red')
+```
+
+
 ### Coverage
 ```{r}
 Lambda_outer_qs <- apply(blast_est$Lambda_outer_samples, c(1,2), 
