@@ -217,7 +217,7 @@ dev.off()
 
 sigma_2s_blast_gene <- colMeans(blast_gene_analysis$Sigma_2s_samples)
 cor_mean <- cov2cor(Lambda_outer_blast_gene_sel + diag(sigma_2s_blast_gene[subsample_plot]))
-cor_mean[Lambda_outer_blast_gene_sel_qs[1,,]<0 & Lambda_outer_blast_gene_sel_qs[2,,]<0] = 0
+cor_mean[Lambda_outer_blast_gene_sel_qs[1,,]<0 & Lambda_outer_blast_gene_sel_qs[2,,]>0] = 0
 
 rownames(cor_mean)=colnames(cor_mean)=genes.use[subsample_plot]
 cor_mean[abs(cor_mean)<.5]=0
@@ -230,8 +230,8 @@ hist(diag(Lambda_outer_blast_gene_sel))
 diag(Lambda_outer_blast_gene_sel)[order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:50]]
 #indices.connected.genes <- sample(seq(1, 1000), 100)
 #indices.connected.genes <- 1:100
-indices.connected.genes = order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:40]
-subgenes=genes.use[indices.connected.genes]
+#indices.connected.genes = order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:40]
+#subgenes=genes.use[indices.connected.genes]
 
 library(circlize)
 C2=cor_mean[subgenes,subgenes]; 
@@ -245,7 +245,9 @@ est_partcor_plot_subgenes_connected_ordered=C2[subgenes.connected.ordered,subgen
 lim_min <- min(est_partcor_plot_subgenes_connected_ordered)
 lim_max <- max(est_partcor_plot_subgenes_connected_ordered)
 
-col_viol_green = colorRamp2(c(lim_min,0,lim_max), c("#AA4499","white", "#117733"), transparency = 0.00)
+c(lim_min, lim_max)
+
+col_viol_green = colorRamp2(c(lim_min,0,lim_max), c("#AA4499","white", "#117733"), transparency = 0.01)
 diag(est_partcor_plot_subgenes_connected_ordered)=.00001
 par(cex=2)
 dev.new(); chordDiagramFromMatrix(est_partcor_plot_subgenes_connected_ordered, 
@@ -258,4 +260,6 @@ dev.new(); chordDiagramFromMatrix(est_partcor_plot_subgenes_connected_ordered,
                            max(strwidth(unlist(dimnames(est_partcor_plot_subgenes_connected_ordered)))))) 
 circos.track(track.index = 1, panel.fun = function(x, y) {
   circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
-              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA )
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.6)}, bg.border = NA )
+
+
