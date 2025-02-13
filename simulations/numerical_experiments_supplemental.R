@@ -64,9 +64,9 @@ for(sim in 1:n_sim){
     set.seed(123)
     ptm <- proc.time()
     msfa_start_value <- start_msfa(Y, k=k_0, j_s=q_s)
-    msfa_fit <-  ecm_msfa(Y, msfa_start_value, trace=FALSE, corr=FALSE)
+    msfa_est <-  ecm_msfa(Y, msfa_start_value, trace=FALSE, corr=FALSE)
     msfa_time <-  proc.time() - ptm
-    output_msfa <- compute_metrics_msfa(msfa_fit, Y, Lambda_0_outer, Gammas_0_outer, Etas_0, 
+    output_msfa <- compute_metrics_msfa(msfa_est, Y, Lambda_0_outer, Gammas_0_outer, Etas_0, 
                                         Phis_0, subsample_index=subsample_index)
     rm(msfa_est)
     output_msfa[5*S +4] = msfa_time[3]
