@@ -5,7 +5,6 @@ source('application/helpers_application.R')
 cutoff <- 0.75
 source('application/gene_preprocessing.R')
 
-
 set.seed(123)
 n_MC<- 100
 ptm <- proc.time()
@@ -225,13 +224,8 @@ mean(cor_mean==0)
 indices.connected.genes=which(rowSums( cor_mean!=0)-1 > 10)
 length(indices.connected.genes)
 subgenes=genes.use[indices.connected.genes]
-
-hist(diag(Lambda_outer_blast_gene_sel))
 diag(Lambda_outer_blast_gene_sel)[order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:50]]
-#indices.connected.genes <- sample(seq(1, 1000), 100)
-#indices.connected.genes <- 1:100
-#indices.connected.genes = order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:40]
-#subgenes=genes.use[indices.connected.genes]
+
 
 library(circlize)
 C2=cor_mean[subgenes,subgenes]; 
