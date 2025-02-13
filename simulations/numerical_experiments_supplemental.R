@@ -5,27 +5,7 @@ source('simulations/helpers_numerical_experiments.R')
 
 S <- 3; k_0 <- 4; q_s <- rep(3, S)
 
-scenario_supp <- 9
-
-if(scenario_supp==1){
-  p <- 100; n_s <- rep(100, S); var <- 'hom'
-} else if(scenario_supp==2){
-  p <- 100; n_s <- rep(100, S); var <- 'het'
-} else if(scenario_supp==3){
-  p <- 100; n_s <- rep(200, S); var <- 'hom'
-}else if(scenario_supp==4){
-  p <- 100; n_s <- rep(200, S); var <- 'het'
-}else if(scenario_supp==5){
-  p <- 200; n_s <- rep(200, S); var <- 'hom'
-} else if(scenario_supp==6){
-  p <- 200; n_s <- rep(200, S); var <- 'het'
-} else if(scenario_supp==7){
-  p <- 300; n_s <- rep(200, S); var <- 'hom'
-}else if(scenario_supp==8){
-  p <- 300; n_s <- rep(200, S); var <- 'het'
-}else if(scenario_supp==9){
-  p <- 150; n_s <- rep(200, S); var <- 'hom'
-}
+p <- 150; n_s <- rep(200, S); var <- 'hom'
 
 test_svi <- T; test_cavi <- T; test_blast <- F; test_msfa <- F; test_bmsfa <- F
 
@@ -100,7 +80,7 @@ for(sim in 1:n_sim){
                            svd_cpp=T, svd_econ=T, tau=0.2) 
     blast_time =  proc.time() - ptm
     output_blast <- compute_metrics_blast(blast_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
-                                          n_MC=n_MC, subsample_index=1:100)
+                                          n_MC=n_MC, subsample_index=subsample_index)
     output_blast[5*S + 4] = blast_time[3]
     df_blast <- rbind(df_blast, c(3, output_blast))
   }
@@ -124,4 +104,6 @@ print_metrics(df_msfa, S=3)
 print_metrics(df_blast, S=3)
 
 
-write.csv(df_blast, '../results/p150_n200/df_blast.csv')
+#write.csv(df_blast, '../results/p150_n200/df_blast.csv')
+write.csv(df_svi, '../results/p150_n200/df_svi.csv')
+write.csv(df_cavi, '../results/p150_n200/df_cavi.csv')
