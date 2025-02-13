@@ -102,8 +102,3 @@ print_metrics(df_cavi, S=3)
 print_metrics(df_bmsfa, S=3)
 print_metrics(df_msfa, S=3)
 print_metrics(df_blast, S=3)
-
-
-#write.csv(df_blast, '../results/p150_n200/df_blast.csv')
-write.csv(df_svi, '../results/p150_n200/df_svi.csv')
-write.csv(df_cavi, '../results/p150_n200/df_cavi.csv')

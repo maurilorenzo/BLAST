@@ -80,7 +80,7 @@ names(df_svi) <- names
 names(df_cavi) <- names
 names(df_blast) <- names
 
-print_metrics(df_svi[,])
+print_metrics(df_svi)
 print_metrics(df_cavi)
 print_metrics(df_blast)
 
