@@ -1,4 +1,4 @@
-#include <C:/Users/mauri/AppData/Local/R/win-library/4.3/RcppArmadillo/include/RcppArmadillo.h>
+#include <RcppArmadillo.h>
 #include <Rcpp.h>
 
 
