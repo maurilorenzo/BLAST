@@ -10,7 +10,6 @@ knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 
 
-
 ```{r}
 source('application/helpers_application.R')
 #load('.RData')
@@ -25,30 +24,6 @@ source('application/gene_preprocessing.R')
 
 
 # LATENT DIMENSION ESTIMATION
-```{r}
-estimate_latent_dimensions <-  function(Y, tau=0.1){
-  k_hats <- list()
-  S <-length(Y)
-  p <- ncol(Y[1])
-  P_tilde <- matrix(0, p, p)
-  k_max <- 0
-  k_s <- c()
-  for(s in 1:S){
-    k_hats[[s]] <- estimate_latent_dimension(Y[[s]], k_max=100)
-    V <-  k_hats[[s]]$svd_Y$v[,1: k_hats[[s]]$k_hat]; 
-    P <- tcrossprod(V)
-    P_tilde <- P_tilde + P
-    k_max <- k_max + k_hats[[s]]$k_hat
-    k_s[s] <- k_hats[[s]]$k_hat
-  }
-   P_tilde <- P_tilde / S
-   s_tilde <- svd(P_tilde, nu=k_max, nv=k_max)
-   k_0_hat <- max(which(s_tilde$d[1:(k_max)] > 1 - tau))
-   return(list(k_0=k_0_hat, q_s = k_s - k_0_hat))
-}
-```
-
-
 
 ## Latent dimensions estimated via information criteria
 
@@ -73,8 +48,7 @@ blast_gene_time_1
 ```
 
 ```{r}
-#blast_gene_est_1 <- readRDS('models_fit/p2486/blast_genes_est_1.rds')
-blast_gene_acc_1 <- compute_oos_accuracy_blast(blast_gene_est_1, Y_test_gene, impute_factor_index_gene, coverage=T)
+blast_gene_acc_1 <- compute_oos_accuracy_blast(blast_gene_est_1, Y_test_gene, impute_factor_index_gene, coverage=F)
 ```
 
 
@@ -88,9 +62,8 @@ library(VIMSFA)
 ### CAVI
 ```{r}
 set.seed(123)
-#cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
                              max_iter=500)
-#cavi_gene_acc_1 <- compute_oos_accuracy_vi(cavi_est_gene_1, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
 ```
 
 ### SVI
@@ -120,9 +93,8 @@ blast_gene_time_2
 ```
 
 ```{r}
-blast_gene_acc_2 <- compute_oos_accuracy_blast(blast_gene_est_2, Y_test_gene, impute_factor_index_gene, coverage = T)
+blast_gene_acc_2 <- compute_oos_accuracy_blast(blast_gene_est_2, Y_test_gene, impute_factor_index_gene, coverage = F)
 ```
-
 
 
 ## VI 
@@ -159,7 +131,7 @@ svi_gene_acc_2 <- compute_oos_accuracy_vi(svi_est_gene_2, Y_test_gene, impute_fa
 # p = 7870
 ```{r}
 cutoff <- 0.5
-source('gene_preprocessing.R')
+source('application/gene_preprocessing.R')
 ```
 
 
@@ -172,7 +144,7 @@ n_MC<- 200
 ptm <- proc.time()
 blast_gene_est_1_b <- fit_blast(
   Y_train_gene, k=k_0_hat, q_s=q_s_hat, n_MC=n_MC,
-  sample_outer_product = F, k_max=120, flag_svd_y = 3, flag_svd_p = 4) 
+  sample_outer_product = F, k_max=120) 
 blast_gene_time_1_b <- (proc.time() - ptm)[3]
 blast_gene_time_1_b
 ```
