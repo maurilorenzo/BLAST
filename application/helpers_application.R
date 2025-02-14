@@ -3,7 +3,7 @@
 if (!require("genefilter", quietly = TRUE)){
   BiocManager::install("genefilter")
 }
-if(! require(VIMSFA, , quietly = TRUE)){
+if(! require(VIMSFA, quietly = TRUE)){
   install_github("blhansen/VI-MSFA")
 }
 library(Biobase)
