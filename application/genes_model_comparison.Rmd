@@ -5,6 +5,12 @@ date: ""
 output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+
+
+
 ```{r}
 source('application/helpers_application.R')
 #load('.RData')
@@ -82,9 +88,9 @@ library(VIMSFA)
 ### CAVI
 ```{r}
 set.seed(123)
-cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+#cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
                              max_iter=500)
-cavi_gene_acc_1 <- compute_oos_accuracy_vi(cavi_est_gene_1, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+#cavi_gene_acc_1 <- compute_oos_accuracy_vi(cavi_est_gene_1, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
 ```
 
 ### SVI
@@ -115,7 +121,6 @@ blast_gene_time_2
 
 ```{r}
 blast_gene_acc_2 <- compute_oos_accuracy_blast(blast_gene_est_2, Y_test_gene, impute_factor_index_gene, coverage = T)
-summary(blast_gene_acc_2$r2s)
 ```
 
 
