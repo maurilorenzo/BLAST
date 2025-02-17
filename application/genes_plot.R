@@ -1,6 +1,7 @@
 # R SCRIPT TO MAKE PLOTS FOR THE IN APPLICATION IN SECTION 5 OF THE PAPER, 
 # WHICH ARE REPORTED IN THE SUPPLEMENTAL MATERIAL
 
+
 source('application/helpers_application.R')
 cutoff <- 0.75
 source('application/gene_preprocessing.R')
@@ -133,7 +134,7 @@ for(s in 2:S){
   emp_corr_data <- rbind(emp_corr_data, emp_corr_data_s) 
 }
 lim_min = -1; lim_max= 1
-library(ggplot2)
+
 custom_palette <- colorRampPalette(c("#AA4499", "white", "#117733"))
 emp_corr_plot<- ggplot(emp_corr_data, aes(Var1, Var2, fill=Freq)) +
   geom_tile() +
@@ -212,10 +213,10 @@ dev.off()
 ################################################################################
 # FIG 3 supp
 ################################################################################
-# adapting code from https://github.com/noirritchandra/SUFA/blob/main/vignettes/Genedata_application.R
 
 sigma_2s_blast_gene <- colMeans(blast_gene_analysis$Sigma_2s_samples)
-cor_mean <- cov2cor(Lambda_outer_blast_gene_sel + diag(sigma_2s_blast_gene[subsample_plot]))
+shared_cov <- Lambda_outer_blast_gene_sel + diag(sigma_2s_blast_gene[subsample_plot])
+cor_mean <- cov2cor(shared_cov)
 cor_mean[Lambda_outer_blast_gene_sel_qs[1,,]<0 & Lambda_outer_blast_gene_sel_qs[2,,]>0] = 0
 
 rownames(cor_mean)=colnames(cor_mean)=genes.use[subsample_plot]
@@ -224,34 +225,56 @@ mean(cor_mean==0)
 indices.connected.genes=which(rowSums( cor_mean!=0)-1 > 10)
 length(indices.connected.genes)
 subgenes=genes.use[indices.connected.genes]
-diag(Lambda_outer_blast_gene_sel)[order(diag(Lambda_outer_blast_gene_sel), decreasing=T)[1:50]]
 
-
-library(circlize)
 C2=cor_mean[subgenes,subgenes]; 
 d2 <- as.dist(1-abs(C2)) 
 hc2=cluster::agnes(d2)
 indices.connected.genes.ordered=hc2$order
 subgenes.connected.ordered=subgenes[indices.connected.genes.ordered]
 
-est_partcor_plot_subgenes_connected_ordered=C2[subgenes.connected.ordered,subgenes.connected.ordered] 
 
+
+# this creates csv files for GEPHI (Bastian et al. 2009)
+
+cov_graph <- Lambda_outer_blast_gene_sel[indices.connected.genes, indices.connected.genes]
+cor_graph <- cov2cor(cov_graph)
+cor_graph[Lambda_outer_blast_gene_sel_qs[1,indices.connected.genes,indices.connected.genes]<0 & 
+           Lambda_outer_blast_gene_sel_qs[2,indices.connected.genes,indices.connected.genes]>0] = 0
+nodes <- subgenes.connected.ordered
+edges <- data.frame()
+threshold <- 0.5
+
+for (i in 1:(nrow(cor_graph)-1)) {
+  for (j in (i+1):ncol(cor_graph)) {
+    if (cor_graph[i,j]  > threshold) {
+      new_edge <- data.frame(Source = nodes[i], Target = nodes[j], Weight = cor_graph[i,j], Type='Undirected')
+      edges <- rbind(edges, new_edge)
+    }
+  }
+}
+
+nodes_df <- data.frame(list(Id=seq(1, 209), Label=subgenes.connected.ordered))
+write.csv(edges, 'application/fig/edges_df.csv')
+write.csv(nodes_df, 'application/fig/nodes_df.csv')
+
+
+
+# adapting code from https://github.com/noirritchandra/SUFA/blob/main/vignettes/Genedata_application.R
+est_partcor_plot_subgenes_connected_ordered=C2[subgenes.connected.ordered,subgenes.connected.ordered] 
 lim_min <- min(est_partcor_plot_subgenes_connected_ordered)
 lim_max <- max(est_partcor_plot_subgenes_connected_ordered)
-
 c(lim_min, lim_max)
-
 col_viol_green = colorRamp2(c(lim_min,0,lim_max), c("#AA4499","white", "#117733"), transparency = 0.01)
 diag(est_partcor_plot_subgenes_connected_ordered)=.00001
 par(cex=2)
 dev.new(); chordDiagramFromMatrix(est_partcor_plot_subgenes_connected_ordered, 
-                       order=c(subgenes.connected.ordered), symmetric=TRUE, 
-                       transparency = 0.1, grid.col="blue", 
-                       col=col_viol_green, annotationTrack=c("grid"), 
-                       keep.diagonal=T, scale=T, reduce=-100, 
-                       preAllocateTracks = list(
-                         track.height = 
-                           max(strwidth(unlist(dimnames(est_partcor_plot_subgenes_connected_ordered)))))) 
+                                  order=c(subgenes.connected.ordered), symmetric=TRUE, 
+                                  transparency = 0.1, grid.col="blue", 
+                                  col=col_viol_green, annotationTrack=c("grid"), 
+                                  keep.diagonal=T, scale=T, reduce=-100, 
+                                  preAllocateTracks = list(
+                                    track.height = 
+                                      max(strwidth(unlist(dimnames(est_partcor_plot_subgenes_connected_ordered)))))) 
 circos.track(track.index = 1, panel.fun = function(x, y) {
   circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
               facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.6)}, bg.border = NA )

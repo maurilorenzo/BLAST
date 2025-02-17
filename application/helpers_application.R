@@ -7,15 +7,16 @@ if(! require(VIMSFA, quietly = TRUE)){
   install_github("blhansen/VI-MSFA")
 }
 library(Biobase)
+library(circlize)
 library(expm)
 library(genefilter)
+library(ggplot2)
 library(mvtnorm)
 library(pracma)
 library(readxl)
 library(sparsepca)
 library(VIMSFA)
 
-#setwd('../')
 source('blast_wrapper.R')
 
 
@@ -200,6 +201,25 @@ compute_oos_accuracy_vi <- function(vi_fit, Y_test, impute_factor_index_gene, n_
 }
 
 
-#setwd('application')
+estimate_latent_dimensions <-  function(Y, tau=0.1){
+  k_hats <- list()
+  S <-length(Y)
+  p <- ncol(Y[[1]])
+  P_tilde <- matrix(0, p, p)
+  k_max <- 0
+  k_s <- c()
+  for(s in 1:S){
+    k_hats[[s]] <- estimate_latent_dimension(Y[[s]], k_max=100)
+    V <-  k_hats[[s]]$svd_Y$v[,1: k_hats[[s]]$k_hat]; 
+    P <- tcrossprod(V)
+    P_tilde <- P_tilde + P
+    k_max <- k_max + k_hats[[s]]$k_hat
+    k_s[s] <- k_hats[[s]]$k_hat
+  }
+  P_tilde <- P_tilde / S
+  s_tilde <- svd(P_tilde, nu=k_max, nv=k_max)
+  k_0_hat <- max(which(s_tilde$d[1:(k_max)] > 1 - tau))
+  return(list(k_0=k_0_hat, q_s = k_s - k_0_hat))
+}
 
 

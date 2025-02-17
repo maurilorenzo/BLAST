@@ -48,7 +48,7 @@ Y_1 <- Y_cent_scaled[[1]]; dim(Y_1)
 Y_2 <- Y_cent_scaled[[2]]; dim(Y_2)
 Y_3 <- Y_cent_scaled[[3]]; dim(Y_3)
 
-Y <- list(Y_1, Y_2, Y_3)
+Y_gene <- list(Y_1, Y_2, Y_3)
 
 n_1 <- nrow(Y_1)
 n_2 <- nrow(Y_2)

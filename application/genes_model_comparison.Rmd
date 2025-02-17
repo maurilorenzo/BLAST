@@ -12,7 +12,6 @@ knitr::opts_knit$set(root.dir = normalizePath(".."))
 
 ```{r}
 source('application/helpers_application.R')
-#load('.RData')
 ```
 
 
@@ -164,7 +163,7 @@ n_MC<- 500
 ptm <- proc.time()
 blast_gene_est_2_b <- fit_blast(
   Y_train_gene, k=k_0_hat, q_s=q_s_hat_2, n_MC=n_MC,
-  sample_outer_product = F, k_max=120, flag_svd_y = 3, flag_svd_p = 4) 
+  sample_outer_product = F, k_max=120) 
 blast_gene_time_2_b <- (proc.time() - ptm)[3]
 blast_gene_time_2_b
 ```
