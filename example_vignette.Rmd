@@ -73,7 +73,7 @@ p <- 500 # outcome dimension
 n_s <- rep(500, S)# sample sizes
 var <- 'hom'
 
-data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)
+data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=123, var=var)
 Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
 Etas_0=data_sim$Etas_0; Phis_0=data_sim$Phis_0
 subsample_index <- 1:100
@@ -83,19 +83,19 @@ Lambda_0_outer_sub <- Lambda_0_outer[subsample_index, subsample_index]
 # Fit BLAST
 
 ```{r}
+n_MC <- 500
 blast_est <- fit_blast(Y, k=NA, q_s=NA, n_MC=n_MC, k_max=20, subsample_index=subsample_index) 
 ```
 
 # Compute Performance
 
-## Low-rank covariance components
-
-### Accuracy
+## Accuracy
 ```{r}
 norm((tcrossprod(blast_est$Lambda_mean) - Lambda_0_outer), type='F') / norm(Lambda_0_outer, type='F')
 for(s in 1:S){
-  norm((tcrossprod(blast_est$Gammas_mean) - Gammas_0_outer[[s]]), type='F') / 
-    norm(Gammas_0_outer[[s]], type='F')
+  print(s)
+  print(norm((tcrossprod(blast_est$Gammas_mean[,,s]) - Gammas_0_outer[[s]]), type='F') / 
+    norm(Gammas_0_outer[[s]], type='F'))
 }
 ```
 
@@ -104,16 +104,17 @@ plot(Lambda_0_outer_sub, tcrossprod(blast_est$Lambda_mean[subsample_index,]), ma
 ```
 
 
-### Coverage
+## Coverage
 ```{r}
 Lambda_outer_qs <- apply(blast_est$Lambda_outer_samples, c(1,2), 
                          function(x)(quantile(x, probs=c(0.025, 0.975))))
 mean((Lambda_outer_qs[1,,]<Lambda_0_outer_sub) & (Lambda_outer_qs[2,,]>Lambda_0_outer_sub))
 for(s in 1:S){
+  print(s)
   Gammas_outer_qs <- apply(blast_est$Gammas_outer_samples, c(1,2, 4), 
                          function(x)(quantile(x, probs=c(0.025, 0.975))))
-  mean((Gammas_outer_qs[1,,,s]<Gammas_0_outer[[s]][subsample_index, subsample_index]) &
-       (Gammas_outer_qs[2,,,s]>Gammas_0_outer[[s]][subsample_index, subsample_index]))
+  print(mean((Gammas_outer_qs[1,,,s]<Gammas_0_outer[[s]][subsample_index, subsample_index]) &
+       (Gammas_outer_qs[2,,,s]>Gammas_0_outer[[s]][subsample_index, subsample_index])))
 }
 ```
 
