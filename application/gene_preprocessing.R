@@ -36,17 +36,41 @@ Ident.list=list(Ident.array,Ident.array2,Ident.bulk)
 Y_cent=mapply(function(Idents,y){
   cell.types=unique(Idents)
   y_cent=lapply(cell.types, function(ident,Identt,Y){
-    scale(Y[which(Identt==ident),],scale=F)
+    scale(Y[which(Identt==ident),],scale=T)
   } ,Y=y,Identt=Idents)
   Reduce(rbind,y_cent)
 }, Ident.list, Y )
 
-sd.median=median( sapply(Y_cent, function(y) apply(y,2,sd)))
-Y_cent_scaled=lapply(Y_cent, "/",   sd.median)
 
+
+to_normal <- function(x){
+  n <- length(x)
+  std <- sd(x)
+  ranks <- rank(x)
+  return(qnorm(ranks/(n+1), 0 , std))
+}
+
+Y_normal <- list()
+for(s in 1:length(Y)){
+  Y_m <- apply(Y[[s]], 2, to_normal)
+  Y[[s]] <- scale(Y_m[,])
+}
+
+#sd.median=median( sapply(Y_cent, function(y) apply(y,2,sd)))
+#Y_cent_scaled=lapply(Y_cent, "/",   sd.median)
+Y_cent_scaled <- sapply(Y, scale)
 Y_1 <- Y_cent_scaled[[1]]; dim(Y_1)
 Y_2 <- Y_cent_scaled[[2]]; dim(Y_2)
 Y_3 <- Y_cent_scaled[[3]]; dim(Y_3)
+
+mask_1 <- colSums(is.na(Y_1))
+sum(mask_1)
+mask_2 <- colSums(is.na(Y_2))
+sum(mask_2)
+mask_3 <- colSums(is.na(Y_3))
+sum(mask_3)
+
+#hist(colSds(Y_1))
 
 Y_gene <- list(Y_1, Y_2, Y_3)
 
@@ -71,7 +95,7 @@ Y_3_test_gene <- as.matrix(Y_3[test_gene_3,])
 Y_test_gene <- list(Y_1_test_gene, Y_2_test_gene, Y_3_test_gene)  
 
 p <- ncol(Y_1_test_gene)
-set.seed(123)
+set.seed(45)
 impute_factor_index_gene <- sample(1:p, floor(0.5*p))
 p_test <- p-length(impute_factor_index_gene)
 

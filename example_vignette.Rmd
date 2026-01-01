@@ -12,7 +12,7 @@ source('blast_wrapper.R')
 # Generate data
 
 ```{r}
-generate_data <- function(p=500, n_s=rep(500, 5), S=5, q_s=rep(5,5), k_0=10, seed=123, var='het'){
+generate_data <- function(p=500, n_s=rep(500, 5), S=5, q_s=rep(5,5), k_0=10, seed=123, var='het', add_confounder = T){
   set.seed(seed)
   sigma_loadings <- 0.5 # std of loadings
   pi_lambda = 0.5 # add sparsity (pi_lambda = prob of being non zero)
@@ -20,6 +20,10 @@ generate_data <- function(p=500, n_s=rep(500, 5), S=5, q_s=rep(5,5), k_0=10, see
   Loadings <- matrix(rnorm(p*(k_0+sum(q_s)), 0, sigma_loadings), ncol=(k_0+sum(q_s)))
   Loadings <- Loadings * matrix(rbinom(p*(k_0+sum(q_s)), 1, pi_lambda), nrow=p)
   Lambda_0 <- Loadings[,1:k_0]
+  if(add_confounder){
+    conf <- matrix(rnorm(p*2, 0, 0.3), ncol=2)
+    Lambda_0[,1:2] <- Lambda_0[,1:2] + conf
+  }
   Lambda_0_outer <- Lambda_0 %*% t(Lambda_0)
   
   Gammas_0 <- list()
@@ -35,6 +39,12 @@ generate_data <- function(p=500, n_s=rep(500, 5), S=5, q_s=rep(5,5), k_0=10, see
     n <- n_s[s]
     Gamma_1 <- Loadings[, k_init:(k_init + q_s[s]-1)]
     k_init <- k_init + q_s[s]
+    if(add_confounder){
+    if(s > 1){
+          Gamma_1[,1:2] <- Gamma_1[,1:2] + conf
+
+    }
+  }
     Gammas_0[[s]] <- Gamma_1
     Gammas_0_outer[[s]] <-  Gamma_1 %*% t(Gamma_1)
     LRs_0[[s]] <- Lambda_0_outer + Gammas_0_outer[[s]] 
@@ -73,7 +83,7 @@ p <- 500 # outcome dimension
 n_s <- rep(500, S)# sample sizes
 var <- 'hom'
 
-data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=123, var=var)
+data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=1, var=var, add_confounder = T)
 Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
 Etas_0=data_sim$Etas_0; Phis_0=data_sim$Phis_0
 subsample_index <- 1:100
@@ -97,6 +107,13 @@ for(s in 1:S){
   print(norm((tcrossprod(blast_est$Gammas_mean[,,s]) - Gammas_0_outer[[s]]), type='F') / 
     norm(Gammas_0_outer[[s]], type='F'))
 }
+
+for(s in 1:S){
+  print(s)
+  print(norm((tcrossprod(blast_est$Lambda_mean) + tcrossprod(blast_est$Gammas_mean[,,s]) - Gammas_0_outer[[s]] - Lambda_0_outer), type='F') / 
+    norm(Gammas_0_outer[[s]]+ Lambda_0_outer, type='F'))
+}
+
 ```
 
 ```{r}

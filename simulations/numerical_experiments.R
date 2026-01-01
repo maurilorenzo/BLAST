@@ -8,12 +8,12 @@ k_0 <- 10 # latent dimension of shared component
 q_s <- rep(5, S) # latent dimension of study-specific component
 
 # change scenario from 1 to 8 for all configurations considered
-scenario <- 1
-p <- 5000 # outcome dimension 
-n_s <- rep(1000, S)# sample sizes
+scenario <- 3
+p <- 500 # outcome dimension 
+n_s <- rep(500, S)# sample sizes
 var <- 'hom'
 
-if(scenario > 5){
+if(scenario >= 5){
   var <- 'het'
 }
 if((scenario %% 2) == 0){
@@ -26,10 +26,15 @@ if(scenario %in% c(3,4,7,8)){
 df_svi <- data.frame()
 df_cavi <- data.frame()
 df_blast <- data.frame()
+df_spectral <- data.frame()
 
-test_svi <- T; test_cavi <- T; test_blast <- T
-n_sim <- 5
-for(sim in 4:n_sim){
+names <- c('method', 'L_fr', 'L_cov', 'L_len', paste0("G", 1:S, "_fr"), paste0("G", 1:S, "_cov"), 
+           paste0("G", 1:S, "_len"), paste0("Eta", 1:S, "_fr"), paste0("Phi", 1:S, "_fr"),
+           'time')
+
+test_svi <- F; test_cavi <- F; test_blast <- F; test_spectral <- T
+n_sim <- 50
+for (sim in 6:n_sim){
   print(sim)
   data_sim <- generate_data(p=p, n_s=n_s, S=S, q_s=q_s, k_0=k_0, seed=sim, var=var)
   Y=data_sim$Y; Lambda_0_outer=data_sim$Lambda_0_outer; Gammas_0_outer=data_sim$Gammas_0_outer;
@@ -70,17 +75,35 @@ for(sim in 4:n_sim){
     output_blast[5*S + 4] = blast_time[3]
     df_blast <- rbind(df_blast, c(3, output_blast))
   }
+  if(test_spectral){
+    ptm <- proc.time()
+    ando_bai_est <- compute_ando_bai_estimates(Y, k_0, q_s, tol=0.01)
+    spectral_time =  proc.time() - ptm
+    spectral_time[3]
+    output_spectral <- compute_metrics_spectral(ando_bai_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
+                                          subsample_index=subsample_index)
+    output_spectral[5*S + 4] = spectral_time[3]
+    df_spectral <- rbind(df_spectral, c(4, output_spectral))
+    names(df_spectral) <- names
+    
+    print(colMeans(df_spectral))
+  }
 }
 
 
-names <- c('method', 'L_fr', 'L_cov', 'L_len', paste0("G", 1:S, "_fr"), paste0("G", 1:S, "_cov"), 
-           paste0("G", 1:S, "_len"), paste0("Eta", 1:S, "_fr"), paste0("Phi", 1:S, "_fr"),
-           'time')
+
 names(df_svi) <- names
 names(df_cavi) <- names
 names(df_blast) <- names
+names(df_spectral) <- names
+
+scenario
 
 print_metrics(df_svi)
 print_metrics(df_cavi)
 print_metrics(df_blast)
+print_metrics(df_spectral[,])
+
+write.csv(df_spectral, paste0('simulations/results/', scenario, '_spectral.csv'))
+
 

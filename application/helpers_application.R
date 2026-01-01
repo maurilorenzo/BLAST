@@ -8,6 +8,7 @@ if(! require(VIMSFA, quietly = TRUE)){
 }
 library(Biobase)
 library(circlize)
+library(emdbook)
 library(expm)
 library(genefilter)
 library(ggplot2)
@@ -17,7 +18,9 @@ library(readxl)
 library(sparsepca)
 library(VIMSFA)
 
+
 source('blast_wrapper.R')
+source('helpers_competitors.R')
 
 
 predict_factors <- function(Y_old, Lambda_old, Psi_old, coverage){
@@ -161,7 +164,7 @@ compute_oos_accuracy_vi <- function(vi_fit, Y_test, impute_factor_index_gene, n_
       Gamma_s_i <- Gammas_samples[s,i,,1:qs[s]]
       Loadings_i <- cbind(Lambda_i, Gamma_s_i)
       vars_i <- 1/sapply(vi_fit$rate_psi_s[[s]], 
-                         function(x)(rgamma(1, shape=vi_fit$rate_psi_s[[s]], rate=x)))
+                         function(x)(rgamma(1, shape=vi_fit$shape_psi_s[[s]], rate=x)))
       predict_i <- predict_y(
         Y_test_gene[[s]][,impute_factor_index_gene], Loadings_i[-impute_factor_index_gene,], 
         Loadings_i[impute_factor_index_gene,], vars_i[-impute_factor_index_gene], 
@@ -199,6 +202,68 @@ compute_oos_accuracy_vi <- function(vi_fit, Y_test, impute_factor_index_gene, n_
               Y_means = Y_means,
               Y_preds = Y_preds))
 }
+
+
+compute_oos_accuracy_ando_bai <- function(ando_bai_est, Y_test, impute_factor_index_gene, n_MC=100, coverage=F){
+  n_test <- sapply(Y_test, nrow)
+  p_test <- ncol(Y_test[[1]]) - length(impute_factor_index_gene)
+  p <- ncol(Y_test[[1]])
+  qs <- sapply(ando_bai_est$Gammas, ncol)
+  Y_preds <- list()
+  Y_means <- list()
+  
+  for(s in 1:3){
+    Y_means[[s]] <- array(0, dim=c(n_test[s], p_test))
+    Lambda_i <- ando_bai_est$Lambda_c
+    Gamma_s  <- ando_bai_est$Gammas[[s]] #do.call(cbind, lapply(V_s, function(Vg) Vg[j, 1:k]))
+    vars_i <- ando_bai_est$Sigmas[[s]]
+    Loadings_i <- cbind(Lambda_i, Gamma_s)
+    predict_i <- predict_y(
+      Y_test_gene[[s]][,impute_factor_index_gene], Loadings_i[-impute_factor_index_gene,], 
+      Loadings_i[impute_factor_index_gene,], vars_i[-impute_factor_index_gene], 
+      vars_i[impute_factor_index_gene], coverage=F)
+    Y_means[[s]][,] <- predict_i$Y_mean 
+    if(coverage){
+      Y_preds[[s]] <- array(0, dim=c(n_test[s], p_test, n_MC))
+      for(i in 1:n_MC){
+        predict_i <- predict_y(
+          Y_test_gene[[s]][,impute_factor_index_gene], Loadings_i[-impute_factor_index_gene,], 
+          Loadings_i[impute_factor_index_gene,], vars_i[-impute_factor_index_gene], 
+          vars_i[impute_factor_index_gene], coverage=T)
+        Y_preds[[s]][,,i] <- predict_i$Y_sample
+      }
+    }
+    
+  }
+  
+  blast_gene_coverage <- rep(NA, 3)
+  blast_gene_mses <- array(NA, dim=c(3, p_test))
+  blast_gene_mses_norm <- array(NA, dim=c(3, p_test))
+  
+  for(s in 1:3){
+    print(s)
+    if(coverage){
+      Y_qs <- apply(Y_preds[[s]], c(1,2), function(x)(quantile(x, probs=c(0.025, 0.975))))
+      blast_gene_coverage[s] <- mean(Y_qs[1,,]<Y_test_gene[[s]][,-impute_factor_index_gene] &
+                                       Y_qs[2,,]>Y_test_gene[[s]][,-impute_factor_index_gene])
+      print(blast_gene_coverage[s])
+    }
+    
+    n_s <- nrow(Y_test_gene[[s]])
+    blast_gene_mses[s,] <- colMeans( (Y_means[[s]] - Y_test_gene[[s]][,-impute_factor_index_gene])^2)
+    blast_gene_mses_norm[s,] <- blast_gene_mses[s,] /  (colSds((Y_test_gene[[s]][,-impute_factor_index_gene])))^2 *  n_s / (n_s - 1)
+    print( c( mean(blast_gene_mses_norm[s,]),
+              median(blast_gene_mses_norm[s,]), 
+              quantile(blast_gene_mses_norm[s,], probs=c(0.25, 0.75))
+    ))
+  }
+  return(list(coverage=blast_gene_coverage, 
+              mses = blast_gene_mses,
+              mses_norm = blast_gene_mses_norm,
+              Y_means = Y_means,
+              Y_preds = Y_preds))
+}
+
 
 
 estimate_latent_dimensions <-  function(Y, tau=0.1){

@@ -18,6 +18,8 @@ library(sparsepca)
 library(VIMSFA)
 
 source('blast_wrapper.R')
+source('helpers_competitors.R')
+
 
 ################################################################################
 # Helper functions for simulations setup
@@ -430,4 +432,41 @@ compute_metrics_msfa <- function(msfa_est, Y, Lambda_0_outer, Gammas_0_outer, Et
   return(output_msfa) 
 }
 
+################################################################################
+# Helper functions for spectral estimator by Bai & Ng
+################################################################################
+
+compute_metrics_spectral <- function(spectral_fit, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
+                                  subsample_index=1:100){
+  Lambda_0_outer_sub <- Lambda_0_outer[subsample_index, subsample_index]
+  output_spectral <- c()
+  S <- length(Gammas_0_outer)
+  output_spectral[1] = norm(tcrossprod(spectral_fit$Lambda_c) - Lambda_0_outer, type='F') / norm(Lambda_0_outer, type='F')
+  for(s in 1:S){
+    print(s)
+    # reconstruction study specific LR part
+    output_spectral[s+3] = norm(tcrossprod(spectral_fit$Gammas[[s]]) - Gammas_0_outer[[s]], type='F') /
+      norm(Gammas_0_outer[[s]], type='F')
+  }
+  
+  
+  for(s in 1:S){
+    mean_f_1 <- spectral_fit$Ms[[s]]
+    p_1 <- procrustes(mean_f_1, Etas_0[[s]])
+    n_1 <- nrow(mean_f_1); k_1 <- ncol(mean_f_1)
+    print(norm(mean_f_1 - Etas_0[[s]] %*% p_1$Q, type='F') / norm(Etas_0[[s]], type='F'))
+    output_spectral[3*S+3+ s] = norm(mean_f_1 - Etas_0[[s]] %*% p_1$Q, type='F') / sqrt(n_1*k_1)
+  }
+  
+  for(s in 1:S){
+    mean_f_1 <-  spectral_fit$Fs[[s]]
+    dim(mean_f_1)
+    n_1 <- nrow(mean_f_1); q_1 <- ncol(mean_f_1)
+    p_1 <- procrustes(mean_f_1, Phis_0[[s]])
+    print(norm(mean_f_1 - Phis_0[[s]] %*% p_1$Q, type='F') / norm(Phis_0[[s]], type='F'))
+    output_spectral[4*S+3+ s] = norm(mean_f_1 - Phis_0[[s]] %*% p_1$Q, type='F') / sqrt(n_1*q_1)
+    
+  }
+  return(output_spectral)
+}
 

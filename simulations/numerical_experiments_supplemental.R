@@ -3,11 +3,11 @@
 source('simulations/helpers_numerical_experiments.R')
 
 
-S <- 3; k_0 <- 4; q_s <- rep(3, S)
+S <- 3; k_0 <- 5; q_s <- rep(4, S)
 
-p <- 150; n_s <- rep(200, S); var <- 'hom'
+p <- 200; n_s <- rep(300, S); var <- 'hom'
 
-test_svi <- T; test_cavi <- T; test_blast <- F; test_msfa <- F; test_bmsfa <- F
+test_svi <- F; test_cavi <- F; test_blast <- F; test_msfa <- F; test_bmsfa <- F; test_spectral <- T
 
 n_sim <- 50
 sim <- 1
@@ -17,7 +17,12 @@ df_cavi <- data.frame()
 df_blast <- data.frame()
 df_bmsfa <- data.frame()
 df_msfa <- data.frame()
+df_spectral <- data.frame()
 
+
+names <- c('method', 'L_fr', 'L_cov', 'L_len', paste0("G", 1:S, "_fr"), paste0("G", 1:S, "_cov"), 
+           paste0("G", 1:S, "_len"), paste0("Eta", 1:S, "_fr"), paste0("Phi", 1:S, "_fr"),
+           'time')
 
 for(sim in 1:n_sim){
   print(sim)
@@ -85,12 +90,25 @@ for(sim in 1:n_sim){
     df_blast <- rbind(df_blast, c(3, output_blast))
   }
   
+  if(test_spectral){
+    ptm <- proc.time()
+    ando_bai_est <- compute_ando_bai_estimates(Y, k_0, q_s, tol=0.01)
+    spectral_time =  proc.time() - ptm
+    spectral_time[3]
+    output_spectral <- compute_metrics_spectral(ando_bai_est, Lambda_0_outer, Gammas_0_outer, Etas_0, Phis_0,
+                                                subsample_index=subsample_index)
+    output_spectral[5*S + 4] = spectral_time[3]
+    df_spectral <- rbind(df_spectral, c(4, output_spectral))
+    names(df_spectral) <- names
+    print(colMeans(df_spectral))
+  }
+  
+  
+  
 }
 
 
-names <- c('method', 'L_fr', 'L_cov', 'L_len', paste0("G", 1:S, "_fr"), paste0("G", 1:S, "_cov"), 
-           paste0("G", 1:S, "_len"), paste0("Eta", 1:S, "_fr"), paste0("Phi", 1:S, "_fr"),
-           'time')
+
 names(df_svi) <- names
 names(df_cavi) <- names
 names(df_bmsfa) <- names
@@ -102,3 +120,7 @@ print_metrics(df_cavi, S=3)
 print_metrics(df_bmsfa, S=3)
 print_metrics(df_msfa, S=3)
 print_metrics(df_blast, S=3)
+print_metrics(df_spectral[,], S=3)
+
+write.csv(df_spectral, paste0('simulations/results/', 'supp_spectral.csv'))
+

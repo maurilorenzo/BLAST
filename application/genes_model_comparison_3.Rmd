@@ -1,0 +1,706 @@
+---
+title: "gene_model_comparison_3"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+
+
+```{r}
+source('application/helpers_application.R')
+```
+
+
+# p = 2486
+```{r}
+cutoff <- 0.75
+source('application/gene_preprocessing.R')
+```
+
+
+# LATENT DIMENSION ESTIMATION
+
+## Latent dimensions estimated via information criteria
+
+```{r}
+lat_dim_gene <- estimate_latent_dimensions(Y_gene, tau=0.2)
+
+k_0_hat <- lat_dim_gene$k_0
+q_s_hat <- lat_dim_gene$q_s
+c(k_0_hat, q_s_hat)
+```
+
+### BLAST
+```{r}
+set.seed(123)
+n_MC<- 500
+ptm <- proc.time()
+blast_gene_est_1 <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_1 <- (proc.time() - ptm)[3]
+blast_gene_time_1
+saveRDS(blast_gene_est_1, 'models_fit/new/blast_gene_time_1_normal_02.rds')
+```
+
+```{r}
+blast_gene_est_1 <- readRDS('application/models_fit/new/blast_gene_time_1_normal_02.rds') 
+```
+
+
+
+```{r}
+blast_gene_acc_1 <- compute_oos_accuracy_blast(blast_gene_est_1, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+```{r}
+blast_gene_acc_1_cov <- compute_oos_accuracy_blast(blast_gene_est_1, Y_test_gene, impute_factor_index_gene, coverage=T)
+```
+
+
+
+```{r}
+blast_gene_oos_1 <- list()
+blast_gene_est_1$Sigmas <- list()
+for(s in 1:S){
+  print(s)
+  res <- Y_train_gene[[s]] - blast_gene_est_1$Ms[[s]] %*% t(blast_gene_est_1$Lambda_mean) - ando_bai_est_1$Fs[[s]] %*% t(blast_gene_est_1$Gammas_mean[,1:q_s_hat[s],s])
+  blast_gene_est_1$Sigmas[[s]] = colMeans(res^2)
+  cov_s <- blast_gene_est_1$Lambda_outer_mean + blast_gene_est_1$Gammas_outer_mean[,,s] + diag(blast_gene_est_1$Sigmas[[s]])
+  cov_s <- blast_gene_est_1$Lambda_outer_mean + blast_gene_est_1$Gammas_outer_mean[,,s] + diag(colMeans(blast_gene_est_1$Sigma_2s_samples))
+  blast_gene_oos_1[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( blast_gene_oos_1[[s]]))
+}
+
+```
+
+
+## spectral estimator by Ando & Bai (JASA, 2017)
+```{r}
+set.seed(123)
+ando_bai_est_1 <- compute_ando_bai_estimates(Y_train_gene, k_0_hat, q_s_hat, tol=0.01)
+ando_bai_time_1 <- (proc.time() - ptm)[3]
+ando_bai_time_1
+```
+
+```{r}
+saveRDS(ando_bai_time_1, 'models_fit/new/ando_bai_time_1_normal_02.rds')
+```
+
+
+```{r}
+ando_bai_est_1$Sigmas <- list()
+res_tot <- c()
+for(s in 1:S){
+  res <- Y_train_gene[[s]] - ando_bai_est_1$Ms[[s]] %*% t(ando_bai_est_1$Lambda_c) - ando_bai_est_1$Fs[[s]] %*% t(ando_bai_est_1$Gammas[[s]])
+  ando_bai_est_1$Sigmas[[s]] = (colSds(res))^2
+  res_tot <- rbind(res_tot, res)
+}
+
+
+for(s in 1:S){
+  ando_bai_est_1$Sigmas[[s]] <- (colSds(res_tot)^2)
+}
+```
+
+
+```{r}
+set.seed(123)
+ando_bai_est_acc_1 <- compute_oos_accuracy_ando_bai(ando_bai_est_1, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+```{r}
+set.seed(123)
+ando_bai_est_acc_1_cov <- compute_oos_accuracy_ando_bai(ando_bai_est_1, Y_test_gene, impute_factor_index_gene, coverage=T)
+```
+
+
+```{r}
+ando_bai_gene_oos_1 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(ando_bai_est_1$Lambda_c) + tcrossprod(ando_bai_est_1$Gammas[[s]]) + 
+    diag(ando_bai_est_1$Sigmas[[s]])
+  ando_bai_gene_oos_1[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( ando_bai_gene_oos_1[[s]]))
+}
+```
+
+
+```{r}
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_1[[s]]))
+  print(sum(ando_bai_gene_oos_1[[s]]))
+  test.1 <- t.test(blast_gene_oos_1[[s]], ando_bai_gene_oos_1[[s]], alternative='greater', paired=TRUE)
+  print(test.1$p.value)
+}
+
+```
+
+## VI 
+Both CAVI and SVI run into numerical errors
+```{r}
+library(VIMSFA)
+```
+
+### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_1 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+cavi_time_gene_1 <- proc.time() - ptm
+cavi_time_gene_1[3]
+```
+
+```{r}
+n_MC <- 500
+cavi_gene_acc_1 <- compute_oos_accuracy_vi(cavi_est_gene_1, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+```{r}
+cavi_gene_oos_1 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(cavi_est_gene_1$mean_phi) + tcrossprod(cavi_est_gene_1$mean_lambda_s[[s]]) + 
+    diag(1/cavi_est_gene_1$rate_psi_s[[s]])
+  cavi_gene_oos_1[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( cavi_gene_oos_1[[s]]))
+}
+
+
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_1[[s]]))
+  print(sum(cavi_gene_oos_1[[s]]))
+  test.2 <- t.test(blast_gene_oos_1[[s]], cavi_gene_oos_1[[s]], alternative='greater', paired=TRUE)
+  print(test.2$p.value)
+}
+
+```
+
+### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_1 <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+svi_time_gene_1 <- proc.time() - ptm
+svi_time_gene_1[3]
+```
+
+
+```{r}
+saveRDS(svi_est_gene_1, 'models_fit/new/svi_est_gene_1_normal_02.rds')
+```
+
+
+
+```{r}
+n_MC <- 100
+svi_gene_acc_1 <- compute_oos_accuracy_vi(svi_est_gene_1, Y_test_gene, impute_factor_index_gene, coverage = F)
+```
+
+```{r}
+n_MC <- 500
+svi_gene_acc_1 <- compute_oos_accuracy_vi(svi_est_gene_1, Y_test_gene, impute_factor_index_gene, coverage = T)
+```
+
+
+```{r}
+svi_gene_oos_1 <- list()
+
+for(s in 1:S){
+  print(s)
+  mean_sigmas <- svi_est_gene_1$rate_psi_s[[s]] /( svi_est_gene_1$shape_psi_s[[s]]-1)
+  cov_s <- tcrossprod(svi_est_gene_1$mean_phi) + tcrossprod(svi_est_gene_1$mean_lambda_s[[s]]) + 
+    diag(mean_sigmas)
+  svi_gene_oos_1[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( svi_gene_oos_1[[s]]))
+}
+```
+
+
+```{r}
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_1[[s]]))
+  print(sum(svi_gene_oos_1[[s]]))
+  test.2 <- t.test(blast_gene_oos_1[[s]], svi_gene_oos_1[[s]], alternative='greater', paired=TRUE)
+  print(test.2$p.value)
+}
+
+```
+
+
+# Reduced Latent dimensions
+```{r}
+q_s_hat_2 <- rep(10, 3)
+```
+
+
+## BLAST
+```{r}
+set.seed(123)
+n_MC<- 200
+ptm <- proc.time()
+blast_gene_est_2 <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat_2, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_2 <- (proc.time() - ptm)[3]
+blast_gene_time_2
+```
+
+```{r}
+saveRDS(blast_gene_est_2, 'models_fit/new/blast_gene_est_2_normal_02.rds')
+```
+
+
+```{r}
+blast_gene_acc_2 <- compute_oos_accuracy_blast(blast_gene_est_2, Y_test_gene, impute_factor_index_gene, coverage = F)
+```
+
+
+```{r}
+blast_gene_oos_2 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- blast_gene_est_2$Lambda_outer_mean + blast_gene_est_2$Gammas_outer_mean[,,s] + diag(colMeans(blast_gene_est_2$Sigma_2s_samples))
+  blast_gene_oos_2[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( blast_gene_oos_2[[s]]))
+}
+
+```
+
+
+## spectral estimator by Ando & Bai (JASA, 2017)
+```{r}
+set.seed(123)
+ptm <- proc.time()
+ando_bai_est_2 <- compute_ando_bai_estimates(Y_train_gene, k_0_hat, q_s_hat_2, tol=0.01)
+ando_bai_time_2 <- (proc.time() - ptm)[3]
+ando_bai_time_2
+```
+
+```{r}
+saveRDS(ando_bai_time_2, 'models_fit/new/ando_bai_time_2_normal_02.rds')
+```
+
+
+```{r}
+ando_bai_est_2$Sigmas <- list()
+for(s in 1:S){
+  res <- Y_train_gene[[s]] - ando_bai_est_2$Ms[[s]] %*% t(ando_bai_est_2$Lambda_c) - ando_bai_est_2$Fs[[s]] %*% t(ando_bai_est_2$Gammas[[s]])
+  ando_bai_est_2$Sigmas[[s]] = colMeans(res^2)
+}
+```
+
+
+```{r}
+ando_bai_est_2$Sigmas <- list()
+res_tot <- c()
+for(s in 1:S){
+  res <- Y_train_gene[[s]] - ando_bai_est_2$Ms[[s]] %*% t(ando_bai_est_2$Lambda_c) - ando_bai_est_2$Fs[[s]] %*% t(ando_bai_est_2$Gammas[[s]])
+  ando_bai_est_2$Sigmas[[s]] = (colSds(res))^2
+  res_tot <- rbind(res_tot, res)
+}
+
+
+for(s in 1:S){
+  ando_bai_est_2$Sigmas[[s]] <- (colSds(res_tot)^2)
+}
+
+```
+
+
+```{r}
+set.seed(123)
+ando_bai_est_acc_2 <- compute_oos_accuracy_ando_bai(ando_bai_est_2, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+
+
+
+```{r}
+ando_bai_gene_oos_2 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(ando_bai_est_2$Lambda_c) + tcrossprod(ando_bai_est_2$Gammas[[s]]) + 
+    diag(ando_bai_est_2$Sigmas[[s]])
+  ando_bai_gene_oos_2[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( ando_bai_gene_oos_2[[s]]))
+}
+```
+
+
+```{r}
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_2[[s]]))
+  print(sum(ando_bai_gene_oos_2[[s]]))
+  test.2 <- t.test(blast_gene_oos_2[[s]], ando_bai_gene_oos_2[[s]], alternative='greater', paired=TRUE)
+  print(test.2$p.value)
+}
+
+```
+
+
+## VI 
+
+### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_2 <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+cavi_gene_time_2 <- proc.time() - ptm
+cavi_gene_time_2
+```
+
+```{r}
+saveRDS(cavi_est_gene_2, 'models_fit/new/scavi_est_gene_2_normal_02.rds')
+```
+
+
+
+```{r}
+cavi_gene_acc_2 <- compute_oos_accuracy_vi(cavi_est_gene_2, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+
+```{r}
+cavi_gene_oos_2 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(cavi_est_gene_2$mean_phi) + tcrossprod(cavi_est_gene_2$mean_lambda_s[[s]]) + 
+    diag(1/cavi_est_gene_2$rate_psi_s[[s]])
+  cavi_gene_oos_2[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( cavi_gene_oos_2[[s]]))
+}
+```
+
+
+```{r}
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_2[[s]]))
+  print(sum(cavi_gene_oos_2[[s]]))
+  test.2 <- t.test(blast_gene_oos_2[[s]], cavi_gene_oos_2[[s]], alternative='greater', paired=TRUE)
+  print(test.2$p.value)
+}
+
+```
+
+### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_2 <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+svi_gene_time_2 <- proc.time() - ptm
+svi_gene_time_2
+```
+
+
+
+```{r}
+saveRDS(svi_est_gene_2, 'models_fit/new/svi_est_gene_2_normal_02.rds')
+```
+
+
+```{r}
+svi_gene_acc_2 <- compute_oos_accuracy_vi(svi_est_gene_2, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+
+```{r}
+svi_gene_oos_2 <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(svi_est_gene_2$mean_phi) + tcrossprod(svi_est_gene_2$mean_lambda_s[[s]]) + 
+    diag(1/svi_est_gene_2$rate_psi_s[[s]])
+  svi_gene_oos_2[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( svi_gene_oos_2[[s]]))
+}
+
+
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_2[[s]]))
+  print(sum(svi_gene_oos_2[[s]]))
+  test.4 <- t.test(blast_gene_oos_2[[s]], svi_gene_oos_2[[s]], alternative='greater', paired=TRUE)
+  print(test.4$p.value)
+}
+
+```
+
+
+# p = 7870
+```{r}
+cutoff <- 0.5
+source('application/gene_preprocessing.R')
+```
+
+
+## Latent dimensions estimated via information criteria
+
+### BLAST
+```{r}
+set.seed(123)
+n_MC<- 200
+ptm <- proc.time()
+blast_gene_est_1_b <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_1_b <- (proc.time() - ptm)[3]
+blast_gene_time_1_b
+```
+
+```{r}
+saveRDS(blast_gene_est_1_b, 'application/models_fit/new/blast_gene_est_1_b_normal_02.rds')
+```
+
+
+```{r}
+blast_gene_est_1_b <- readRDS( 'models_fit/new/blast_gene_est_1_b_normal_02.rds' )
+```
+
+
+```{r}
+blast_gene_acc_1_b <- compute_oos_accuracy_blast(blast_gene_est_1_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+
+```{r}
+blast_gene_acc_1_b <- compute_oos_accuracy_blast(blast_gene_est_1_b, Y_test_gene, impute_factor_index_gene, coverage=T)
+```
+
+
+```{r}
+blast_gene_oos_1_b <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- blast_gene_est_1_b$Lambda_outer_mean + blast_gene_est_1_b$Gammas_outer_mean[,,s] + diag(colMeans(blast_gene_est_1_b$Sigma_2s_samples))
+  blast_gene_oos_1_b[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( blast_gene_oos_1_b[[s]]))
+}
+
+```
+
+
+### Ando & Bai (JASA, 2017)
+```{r}
+set.seed(123)
+ptm <- proc.time()
+ando_bai_est_1_b <- compute_ando_bai_estimates(Y_train_gene, k_0_hat, q_s_hat)
+ando_bai_time_1_b <- (proc.time() - ptm)[3]
+ando_bai_time_1_b
+```
+
+
+```{r}
+saveRDS(ando_bai_est_1_b, 'application/models_fit/new/ando_bai_est_1_b_normal_02.rds')
+```
+
+
+
+```{r}
+ando_bai_est_1_b$Sigmas <- list()
+res_tot <- c()
+for(s in 1:S){
+  res <- Y_train_gene[[s]] - ando_bai_est_1_b$Ms[[s]] %*% t(ando_bai_est_1_b$Lambda_c) - ando_bai_est_1_b$Fs[[s]] %*% t(ando_bai_est_1_b$Gammas[[s]])
+  ando_bai_est_1_b$Sigmas[[s]] = (colSds(res))^2
+  res_tot <- rbind(res_tot, res)
+}
+
+
+for(s in 1:S){
+  ando_bai_est_1_b$Sigmas[[s]] <- (colSds(res_tot)^2)
+}
+
+saveRDS(ando_bai_est_1_b, 'application/models_fit/new/ando_bai_est_1_b_normal_02.rds')
+```
+
+
+```{r}
+set.seed(123)
+ando_bai_est_acc_1_b <- compute_oos_accuracy_ando_bai(ando_bai_est_1_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+
+
+```{r}
+ando_bai_gene_oos_1_b <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- tcrossprod(ando_bai_est_1_b$Lambda_c) + tcrossprod(ando_bai_est_1_b$Gammas[[s]]) + 
+    diag(ando_bai_est_1_b$Sigmas[[s]])
+  ando_bai_gene_oos_1_b[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( ando_bai_gene_oos_1_b[[s]]))
+}
+```
+
+
+```{r}
+for(s in 1:S){
+  print(paste0('study : ', s))
+  print(sum(blast_gene_oos_1_b[[s]]))
+  print(sum(ando_bai_gene_oos_1_b[[s]]))
+  test.1 <- t.test(blast_gene_oos_1_b[[s]], ando_bai_gene_oos_1_b[[s]], alternative='greater', paired=TRUE)
+  print(test.1$p.value)
+}
+
+```
+
+
+
+
+### VI 
+
+#### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_1_b <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+cavi_gene_time_1_b <- proc.time() - ptm
+cavi_gene_time_1_b
+```
+
+```{r}
+cavi_gene_acc_1_b <- compute_oos_accuracy_vi(cavi_est_gene_1_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+#### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_1_b <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat, scale=F,
+                             max_iter=500)
+svi_gene_time_1_b <- proc.time() - ptm
+svi_gene_time_1_b
+```
+
+
+```{r}
+n_MC <- 500
+svi_gene_acc_1_b <- compute_oos_accuracy_vi(svi_est_gene_1_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+
+
+
+
+## Reduced latent dimensions 
+
+### BLAST
+```{r}
+q_s_hat_2 <-c(20, 20, 20)
+
+set.seed(123)
+n_MC<- 500
+ptm <- proc.time()
+blast_gene_est_2_b <- fit_blast(
+  Y_train_gene, k=k_0_hat, q_s=q_s_hat_2, n_MC=n_MC,
+  sample_outer_product = F, k_max=120) 
+blast_gene_time_2_b <- (proc.time() - ptm)[3]
+blast_gene_time_2_b
+```
+
+
+
+```{r}
+saveRDS(blast_gene_est_2_b, 'models_fit/new/blast_gene_est_2_b_normal.rds')
+```
+
+```{r}
+blast_gene_acc_2_b <- compute_oos_accuracy_blast(blast_gene_est_2_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+
+
+
+
+```{r}
+blast_gene_oos_2_b <- list()
+for(s in 1:S){
+  print(s)
+  cov_s <- blast_gene_est_2_b$Lambda_outer_mean + blast_gene_est_2_b$Gammas_outer_mean[,,s] + diag(colMeans(blast_gene_est_2_b$Sigma_2s_samples))
+  blast_gene_oos_2_b[[s]] <- emdbook::dmvnorm(Y_test_gene[[s]],  mu=rep(0, p), Sigma=cov_s, log=T)
+  print(sum( blast_gene_oos_2_b[[s]]))
+}
+
+```
+
+
+
+
+
+
+### spectral estimator by Ando & Bai (JASA, 2017)
+
+```{r}
+set.seed(123)
+q_s_hat_2 <-c(20, 20, 20)
+
+ptm <- proc.time()
+ando_bai_est_2_b <- compute_ando_bai_estimates(Y_train_gene, k_0_hat, q_s_hat_2)
+ando_bai_time_2_b <- (proc.time() - ptm)[3]
+ando_bai_time_2_b
+```
+
+
+```{r}
+ando_bai_est_2_b$Sigmas <- list()
+for(s in 1:S){
+  res <- Y_train_gene[[s]] - ando_bai_est_2_b$Ms[[s]] %*% t(ando_bai_est_2_b$Lambda_c) - ando_bai_est_2_b$Fs[[s]] %*% t(ando_bai_est_2_b$Gammas[[s]])
+  ando_bai_est_2_b$Sigmas <- colMeans(res^2)
+}
+```
+
+
+```{r}
+set.seed(123)
+ando_bai_est_acc_2_b <- compute_oos_accuracy_ando_bai(ando_bai_est_2_b, Y_test_gene, impute_factor_index_gene, coverage=F)
+```
+
+
+## Reduced latent dimensions 
+
+### VI 
+
+#### CAVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+cavi_est_gene_2_b <- cavi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+cavi_gene_time_2_b <- proc.time() - ptm
+cavi_gene_time_2_b
+```
+
+```{r}
+cavi_gene_acc_2 <- compute_oos_accuracy_vi(cavi_est_gene_2_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
+#### SVI
+```{r}
+set.seed(123)
+ptm <- proc.time()
+svi_est_gene_2_b <- svi_msfa(Y_train_gene, K=k_0_hat, J_s=q_s_hat_2, scale=F,
+                             max_iter=500)
+svi_gene_time_2_b <- proc.time() - ptm
+svi_gene_time_2_b
+```
+
+
+```{r}
+n_MC <- 500
+svi_gene_acc_2_b <- compute_oos_accuracy_vi(svi_est_gene_2_b, Y_test_gene, impute_factor_index_gene, n_MC=n_MC)
+```
+
